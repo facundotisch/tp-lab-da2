@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Unitree Telemetry Dashboard - UADE</title>
+  <link rel="stylesheet" href="dashboard.css" />
+  <!-- Chart.js via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <header>
+    <div class="header-left">
+      <h1>Monitor de Telemetría Robótica</h1>
+      <div id="connectionStatus" class="badge badge-disconnected">Desconectado</div>
+    </div>
+    <div class="header-right">
+      <label for="modeloSelect">Robot:</label>
+      <select id="modeloSelect">
+        <option value="go2">Go2 (12 Motores)</option>
+        <option value="g1">G1 (29 Motores)</option>
+      </select>
+      <button id="btnCapture" class="btn btn-primary">Capturar Muestra</button>
+      <button id="btnExport" class="btn btn-secondary">Exportar CSV (<span id="nMuestras">0</span>)</button>
+    </div>
+  </header>
+
+  <main class="grid-container">
+    <!-- Panel 1: Motores -->
+    <section class="panel panel-motores">
+      <h2>Estado de Motores</h2>
+      <div class="table-wrapper">
+        <table id="tablaMotores">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Temp (°C)</th>
+              <th>Ángulo (°)</th>
+              <th>Velocidad (rad/s)</th>
+              <th>Torque (Nm)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Generado dinámicamente -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Panel 2: IMU -->
+    <section class="panel panel-imu">
+      <h2>Inercial (IMU)</h2>
+      <div class="imu-metrics">
+        <div class="metric-card"><span>Roll</span><strong id="roll">0.0°</strong></div>
+        <div class="metric-card"><span>Pitch</span><strong id="pitch">0.0°</strong></div>
+        <div class="metric-card"><span>Yaw</span><strong id="yaw">0.0°</strong></div>
+      </div>
+      <div class="chart-wrapper">
+        <canvas id="imuChart"></canvas>
+      </div>
+    </section>
+
+    <!-- Panel 3: BMS -->
+    <section class="panel panel-bms">
+      <h2>Batería (BMS)</h2>
+      <div class="bms-summary">
+        <div class="metric-card"><span>SOC</span><strong id="soc">0%</strong></div>
+        <div class="metric-card"><span>Corriente</span><strong id="bmsI">0 mA</strong></div>
+        <div class="metric-card"><span>Temperatura</span><strong id="bmsT">0 °C</strong></div>
+      </div>
+      <h3>Voltaje de Celdas</h3>
+      <div id="celdas" class="celdas-grid">
+        <!-- Celdas renderizadas dinámicamente -->
+      </div>
+    </section>
+
+    <!-- Panel 4: Fuerzas por Pata -->
+    <section class="panel panel-fuerzas">
+      <h2>Fuerzas / Contacto por Pata</h2>
+      <div class="paws-grid">
+        <div id="pataFR" class="paw-indicator">FR</div>
+        <div id="pataFL" class="paw-indicator">FL</div>
+        <div id="pataRR" class="paw-indicator">RR</div>
+        <div id="pataRL" class="paw-indicator">RL</div>
+      </div>
+    </section>
+  </main>
+
+  <script src="dashboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Unitree Robot Telemetry Dashboard — TP05</title>
+  <link rel="stylesheet" href="dashboard.css">
+  <!-- Chart.js para visualización de gráficos históricos en tiempo real -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <!-- BARRA SUPERIOR / HEADER -->
+  <header class="header">
+    <div class="header-left">
+      <div class="logo-badge">
+        <span class="logo-icon">🤖</span>
+        <div class="logo-text">
+          <h1>Unitree Telemetry Monitor</h1>
+          <p class="subtitle">UADE · Desarrollo de Aplicaciones II · TP05</p>
+        </div>
+      </div>
+      <div class="robot-badge" id="robotInfoBadge">
+        <span class="robot-dot"></span>
+        <span id="robotNameText">Go2 (Cuadrúpedo)</span>
+      </div>
+    </div>
+
+    <!-- CONTROLES DE CONEXIÓN -->
+    <div class="header-center">
+      <div class="connection-box">
+        <div class="input-group">
+          <label for="serverUrl">Servidor:</label>
+          <input type="text" id="serverUrl" value="http://127.0.0.1:8001" placeholder="http://localhost:8001">
+        </div>
+        <div class="mode-selector">
+          <label><input type="radio" name="commMode" value="sim" checked> ⚡ Simulación Directa (Demo)</label>
+          <label><input type="radio" name="commMode" value="ws"> WebSocket (10 Hz)</label>
+          <label><input type="radio" name="commMode" value="poll"> REST Polling</label>
+        </div>
+        <button id="btnConnect" class="btn btn-primary">Conectar</button>
+      </div>
+    </div>
+
+    <!-- ESTADO Y ACCIONES -->
+    <div class="header-right">
+      <div class="status-pill" id="connStatusPill">
+        <span class="status-indicator disconnected" id="statusIndicator"></span>
+        <span id="statusLabel">Desconectado</span>
+      </div>
+      <div class="header-metrics">
+        <span title="Frecuencia de datos">⚡ <strong id="hzMetric">0</strong> Hz</span>
+        <span title="Tiempo de sesión">⏱️ <strong id="sessionTime">00:00</strong></span>
+      </div>
+    </div>
+  </header>
+
+  <!-- BARRA DE HERRAMIENTAS / CAPTURA CSV -->
+  <section class="toolbar">
+    <div class="toolbar-left">
+      <div class="capture-controls">
+        <button id="btnCapture" class="btn btn-success">
+          <span>📸</span> Capturar Muestra (<span id="nMuestras">0</span>)
+        </button>
+        <button id="btnExportCSV" class="btn btn-outline" disabled>
+          <span>📥</span> Exportar CSV
+        </button>
+        <button id="btnClearCaptures" class="btn btn-ghost" disabled>
+          <span>🗑️</span> Limpiar
+        </button>
+      </div>
+      <label class="auto-capture-toggle">
+        <input type="checkbox" id="autoAlertCapture" checked>
+        <span>Auto-capturar si T > 60°C</span>
+      </label>
+    </div>
+
+    <div class="toolbar-right">
+      <div class="rate-adjust" id="pollRateContainer" style="display: none;">
+        <span>Intervalo Polling:</span>
+        <select id="pollInterval">
+          <option value="100">100 ms (10 Hz)</option>
+          <option value="250">250 ms (4 Hz)</option>
+          <option value="500" selected>500 ms (2 Hz - Default)</option>
+          <option value="1000">1000 ms (1 Hz)</option>
+        </select>
+      </div>
+      <span class="timestamp-display">TS: <strong id="telemetryTs">0.00</strong>s</span>
+    </div>
+  </section>
+
+  <!-- CONTENEDOR PRINCIPAL / GRID DE PANELES -->
+  <main class="dashboard-grid">
+
+    <!-- ======================================================= -->
+    <!-- PANEL 1: MOTORES & SEMÁFORO DE TEMPERATURA -->
+    <!-- ======================================================= -->
+    <section class="card panel-motores" id="panelMotores">
+      <div class="card-header">
+        <div class="card-title">
+          <h2>⚙️ Panel de Motores</h2>
+          <span class="badge" id="motoresCountBadge">12 Motores</span>
+        </div>
+        <div class="card-actions">
+          <div class="legend-semaforo">
+            <span class="leg-item"><span class="color-box bg-green"></span> &lt; 40°C Normal</span>
+            <span class="leg-item"><span class="color-box bg-yellow"></span> 40–60°C Alerta</span>
+            <span class="leg-item"><span class="color-box bg-red"></span> &gt; 60°C Crítico</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resumen térmico de motores -->
+      <div class="motores-summary-strip">
+        <div class="summary-stat">
+          <span class="label">Temp Máx:</span>
+          <span class="value" id="motorMaxTemp">-- °C</span>
+        </div>
+        <div class="summary-stat">
+          <span class="label">Temp Promedio:</span>
+          <span class="value" id="motorAvgTemp">-- °C</span>
+        </div>
+        <div class="summary-stat">
+          <span class="label">Torque Máx:</span>
+          <span class="value" id="motorMaxTorque">-- N·m</span>
+        </div>
+        <div class="summary-stat">
+          <span class="label">Estado Térmico:</span>
+          <span class="status-tag ok" id="thermalStatusTag">Óptimo</span>
+        </div>
+      </div>
+
+      <div class="table-container">
+        <table id="tablaMotores" class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Articulación / Nombre</th>
+              <th>Temperatura</th>
+              <th>Ángulo</th>
+              <th>Velocidad</th>
+              <th>Torque Estimado</th>
+            </tr>
+          </thead>
+          <tbody id="tablaMotoresBody">
+            <tr>
+              <td colspan="6" class="table-empty">Esperando datos de telemetría...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Selector de motores para gráfico histórico -->
+      <div class="chart-subpanel">
+        <div class="chart-header">
+          <h3>Historial Térmico de Motores (Ventana de 30s)</h3>
+          <div class="motor-checkboxes" id="motorCheckboxesContainer">
+            <!-- Se llena dinámicamente con checkboxes de motores -->
+          </div>
+        </div>
+        <div class="chart-wrapper">
+          <canvas id="chartMotores"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================= -->
+    <!-- PANEL 2: SISTEMA INERCIAL (IMU) -->
+    <!-- ======================================================= -->
+    <section class="card panel-imu" id="panelIMU">
+      <div class="card-header">
+        <div class="card-title">
+          <h2>🧭 Sistema Inercial (IMU)</h2>
+        </div>
+      </div>
+
+      <!-- Métricas numéricas IMU -->
+      <div class="imu-metrics-grid">
+        <div class="metric-card">
+          <span class="metric-label">Roll (Alabeo)</span>
+          <span class="metric-value" id="imuRoll">0.00°</span>
+          <span class="metric-sub">Eje X</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Pitch (Cabeceo)</span>
+          <span class="metric-value" id="imuPitch">0.00°</span>
+          <span class="metric-sub">Eje Y</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Yaw (Guiñada)</span>
+          <span class="metric-value" id="imuYaw">0.00°</span>
+          <span class="metric-sub">Eje Z (Orientación)</span>
+        </div>
+      </div>
+
+      <!-- Aceleración lineal -->
+      <div class="acc-strip">
+        <span class="acc-title">Aceleración:</span>
+        <span class="acc-item">Ax: <strong id="imuAx">0.00</strong> m/s²</span>
+        <span class="acc-item">Ay: <strong id="imuAy">0.00</strong> m/s²</span>
+        <span class="acc-item">Az: <strong id="imuAz">9.81</strong> m/s²</span>
+      </div>
+
+      <!-- Horizonte artificial / Indicador visual de orientación -->
+      <div class="attitude-indicator-container">
+        <div class="horizon-disk" id="horizonDisk">
+          <div class="horizon-sky"></div>
+          <div class="horizon-ground"></div>
+          <div class="horizon-line"></div>
+        </div>
+        <div class="horizon-reticle"></div>
+        <div class="horizon-overlay-text">
+          <span id="horizonPitchRollText">R: 0.0° | P: 0.0°</span>
+        </div>
+      </div>
+
+      <!-- Gráfico de línea histórico IMU -->
+      <div class="chart-subpanel">
+        <div class="chart-header">
+          <h3>Histórico de Orientación (Roll / Pitch / Yaw)</h3>
+        </div>
+        <div class="chart-wrapper">
+          <canvas id="chartIMU"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================= -->
+    <!-- PANEL 3: BATERÍA Y GESTIÓN ENERGÉTICA (BMS) -->
+    <!-- ======================================================= -->
+    <section class="card panel-bms" id="panelBMS">
+      <div class="card-header">
+        <div class="card-title">
+          <h2>🔋 Batería (BMS)</h2>
+        </div>
+      </div>
+
+      <div class="bms-main-grid">
+        <!-- Nivel de Carga SOC -->
+        <div class="soc-container">
+          <div class="soc-gauge">
+            <svg viewBox="0 0 100 100" class="gauge-svg">
+              <circle class="gauge-bg" cx="50" cy="50" r="42"></circle>
+              <circle class="gauge-fill" id="socCircle" cx="50" cy="50" r="42"></circle>
+            </svg>
+            <div class="soc-text">
+              <span class="soc-num" id="bmsSoc">--</span>
+              <span class="soc-unit">%</span>
+            </div>
+          </div>
+          <span class="soc-label">Estado de Carga (SOC)</span>
+        </div>
+
+        <!-- Indicadores de Corriente y Temperatura -->
+        <div class="bms-stats">
+          <div class="bms-stat-card">
+            <span class="label">Corriente:</span>
+            <span class="value" id="bmsCurrent">-- mA</span>
+          </div>
+          <div class="bms-stat-card">
+            <span class="label">Temperatura Pack:</span>
+            <span class="value" id="bmsTemp">-- °C</span>
+          </div>
+          <div class="bms-stat-card">
+            <span class="label">Tensión Promedio:</span>
+            <span class="value" id="bmsAvgCell">-- V</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Voltajes Individuales de Celda -->
+      <div class="celdas-section">
+        <h3>Voltajes Individuales de Celda (Pack Li-Ion)</h3>
+        <div class="celdas-grid" id="celdasContainer">
+          <!-- Se llenan celdas C1 a C10 dinámicamente -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================= -->
+    <!-- PANEL 4: FUERZAS Y CONTACTO POR PATA -->
+    <!-- ======================================================= -->
+    <section class="card panel-fuerzas" id="panelFuerzas">
+      <div class="card-header">
+        <div class="card-title">
+          <h2>🐾 Fuerzas y Contacto de Patas</h2>
+        </div>
+      </div>
+
+      <div class="fuerzas-content">
+        <!-- Diagrama 2D del Robot Cuadrúpedo -->
+        <div class="robot-chassis" id="robotChassis">
+          <div class="chassis-front">▲ DELANTERA</div>
+          
+          <div class="legs-row">
+            <!-- FL: Front Left -->
+            <div class="leg-indicator" id="pataFL">
+              <span class="leg-name">FL (Del. Izq)</span>
+              <span class="leg-status" id="statusFL">—</span>
+            </div>
+            <!-- FR: Front Right -->
+            <div class="leg-indicator" id="pataFR">
+              <span class="leg-name">FR (Del. Der)</span>
+              <span class="leg-status" id="statusFR">—</span>
+            </div>
+          </div>
+
+          <div class="chassis-body">
+            <span>CHASIS</span>
+          </div>
+
+          <div class="legs-row">
+            <!-- RL: Rear Left -->
+            <div class="leg-indicator" id="pataRL">
+              <span class="leg-name">RL (Tras. Izq)</span>
+              <span class="leg-status" id="statusRL">—</span>
+            </div>
+            <!-- RR: Rear Right -->
+            <div class="leg-indicator" id="pataRR">
+              <span class="leg-name">RR (Tras. Der)</span>
+              <span class="leg-status" id="statusRR">—</span>
+            </div>
+          </div>
+
+          <div class="chassis-rear">▼ TRASERA</div>
+        </div>
+
+        <div class="fuerzas-summary">
+          <div class="fuerza-state-card">
+            <span class="label">Patas en Contacto:</span>
+            <span class="value" id="patasApoyadasCount">0 / 4</span>
+          </div>
+          <div class="fuerza-state-card">
+            <span class="label">Fase de Marcha:</span>
+            <span class="value" id="gaitPhaseLabel">En reposo</span>
+          </div>
+          <p class="fuerzas-note" id="fuerzasNote">
+            * Sensores de contacto activos para Go2 (Cuadrúpedo).
+          </p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- CONTENEDOR DE TOASTS / ALERTAS DE SOBRECALENTAMIENTO -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- FOOTER INFORMATIVO -->
+  <footer class="footer">
+    <span>Universidad Argentina de la Empresa (UADE) · Desarrollo de Aplicaciones II</span>
+    <span>Dashboard de Telemetría en Tiempo Real · WebSocket & REST</span>
+  </footer>
+
+  <script src="dashboard.js"></script>
+</body>
+</html>
