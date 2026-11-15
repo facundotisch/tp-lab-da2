@@ -7,6 +7,8 @@
   <link rel="stylesheet" href="dashboard.css">
   <!-- Chart.js para visualización de gráficos históricos en tiempo real -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <!-- html2canvas para capturas de pantalla directas en PNG -->
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 </head>
 <body>
   <!-- BARRA SUPERIOR / HEADER -->
@@ -19,9 +21,12 @@
           <p class="subtitle">UADE · Desarrollo de Aplicaciones II · TP05</p>
         </div>
       </div>
-      <div class="robot-badge" id="robotInfoBadge">
-        <span class="robot-dot"></span>
-        <span id="robotNameText">Go2 (Cuadrúpedo)</span>
+      <div class="robot-selector-wrapper">
+        <label for="robotSelect">Robot:</label>
+        <select id="robotSelect" class="robot-selector">
+          <option value="go2" selected>Go2 (Cuadrúpedo · 12 motores)</option>
+          <option value="g1">G1 (Humanoide · 29 motores)</option>
+        </select>
       </div>
     </div>
 
@@ -30,12 +35,12 @@
       <div class="connection-box">
         <div class="input-group">
           <label for="serverUrl">Servidor:</label>
-          <input type="text" id="serverUrl" value="http://127.0.0.1:8001" placeholder="http://localhost:8001">
+          <input type="text" id="serverUrl" value="http://127.0.0.1:8001" placeholder="http://127.0.0.1:8001">
         </div>
         <div class="mode-selector">
-          <label><input type="radio" name="commMode" value="sim" checked> ⚡ Simulación Directa (Demo)</label>
-          <label><input type="radio" name="commMode" value="ws"> WebSocket (10 Hz)</label>
-          <label><input type="radio" name="commMode" value="poll"> REST Polling</label>
+          <label title="Conexión Push en tiempo real a 10 Hz"><input type="radio" name="commMode" value="ws" checked> WebSocket (10 Hz)</label>
+          <label title="Peticiones HTTP periódicas"><input type="radio" name="commMode" value="poll"> REST Polling</label>
+          <label title="Simulación local en navegador sin servidor"><input type="radio" name="commMode" value="sim"> Demo Offline</label>
         </div>
         <button id="btnConnect" class="btn btn-primary">Conectar</button>
       </div>
@@ -58,11 +63,14 @@
   <section class="toolbar">
     <div class="toolbar-left">
       <div class="capture-controls">
-        <button id="btnCapture" class="btn btn-success">
-          <span>📸</span> Capturar Muestra (<span id="nMuestras">0</span>)
+        <button id="btnCapture" class="btn btn-success" title="Captura una muestra de telemetría en memoria">
+          <span>📝</span> Capturar Muestra (<span id="nMuestras">0</span>)
         </button>
-        <button id="btnExportCSV" class="btn btn-outline" disabled>
+        <button id="btnExportCSV" class="btn btn-outline" disabled title="Descarga CSV y lo guarda en la carpeta capturas">
           <span>📥</span> Exportar CSV
+        </button>
+        <button id="btnScreenshot" class="btn btn-secondary" title="Toma una foto PNG del dashboard y la guarda en la carpeta capturas">
+          <span>📸</span> Captura Pantalla
         </button>
         <button id="btnClearCaptures" class="btn btn-ghost" disabled>
           <span>🗑️</span> Limpiar
@@ -80,7 +88,7 @@
         <select id="pollInterval">
           <option value="100">100 ms (10 Hz)</option>
           <option value="250">250 ms (4 Hz)</option>
-          <option value="500" selected>500 ms (2 Hz - Default)</option>
+          <option value="500" selected>500 ms (2 Hz - Cátedra)</option>
           <option value="1000">1000 ms (1 Hz)</option>
         </select>
       </div>
@@ -152,7 +160,7 @@
       <!-- Selector de motores para gráfico histórico -->
       <div class="chart-subpanel">
         <div class="chart-header">
-          <h3>Historial Térmico de Motores (Ventana de 30s)</h3>
+          <h3>Historial Térmico de Motores (Búfer de 300 muestras · 30s)</h3>
           <div class="motor-checkboxes" id="motorCheckboxesContainer">
             <!-- Se llena dinámicamente con checkboxes de motores -->
           </div>
@@ -173,21 +181,21 @@
         </div>
       </div>
 
-      <!-- Métricas numéricas IMU -->
+      <!-- Métricas numéricas IMU (IDs compatibles con rúbrica: roll, pitch, yaw) -->
       <div class="imu-metrics-grid">
         <div class="metric-card">
           <span class="metric-label">Roll (Alabeo)</span>
-          <span class="metric-value" id="imuRoll">0.00°</span>
+          <span class="metric-value" id="roll">0.00 °</span>
           <span class="metric-sub">Eje X</span>
         </div>
         <div class="metric-card">
           <span class="metric-label">Pitch (Cabeceo)</span>
-          <span class="metric-value" id="imuPitch">0.00°</span>
+          <span class="metric-value" id="pitch">0.00 °</span>
           <span class="metric-sub">Eje Y</span>
         </div>
         <div class="metric-card">
           <span class="metric-label">Yaw (Guiñada)</span>
-          <span class="metric-value" id="imuYaw">0.00°</span>
+          <span class="metric-value" id="yaw">0.00 °</span>
           <span class="metric-sub">Eje Z (Orientación)</span>
         </div>
       </div>
@@ -213,10 +221,10 @@
         </div>
       </div>
 
-      <!-- Gráfico de línea histórico IMU -->
+      <!-- Gráfico de línea histórico IMU (mínimo 60 muestras, búfer circular de 300) -->
       <div class="chart-subpanel">
         <div class="chart-header">
-          <h3>Histórico de Orientación (Roll / Pitch / Yaw)</h3>
+          <h3>Histórico de Orientación (Roll / Pitch / Yaw · Búfer circular 300)</h3>
         </div>
         <div class="chart-wrapper">
           <canvas id="chartIMU"></canvas>
@@ -235,7 +243,7 @@
       </div>
 
       <div class="bms-main-grid">
-        <!-- Nivel de Carga SOC -->
+        <!-- Nivel de Carga SOC (ID: soc) -->
         <div class="soc-container">
           <div class="soc-gauge">
             <svg viewBox="0 0 100 100" class="gauge-svg">
@@ -243,22 +251,22 @@
               <circle class="gauge-fill" id="socCircle" cx="50" cy="50" r="42"></circle>
             </svg>
             <div class="soc-text">
-              <span class="soc-num" id="bmsSoc">--</span>
+              <span class="soc-num" id="soc">--</span>
               <span class="soc-unit">%</span>
             </div>
           </div>
-          <span class="soc-label">Estado de Carga (SOC)</span>
+          <span class="soc-label">Nivel de Carga (SOC)</span>
         </div>
 
-        <!-- Indicadores de Corriente y Temperatura -->
+        <!-- Indicadores de Corriente (bmsI) y Temperatura (bmsT) -->
         <div class="bms-stats">
           <div class="bms-stat-card">
             <span class="label">Corriente:</span>
-            <span class="value" id="bmsCurrent">-- mA</span>
+            <span class="value" id="bmsI">-- mA</span>
           </div>
           <div class="bms-stat-card">
-            <span class="label">Temperatura Pack:</span>
-            <span class="value" id="bmsTemp">-- °C</span>
+            <span class="label">Temperatura Batería:</span>
+            <span class="value" id="bmsT">-- °C</span>
           </div>
           <div class="bms-stat-card">
             <span class="label">Tensión Promedio:</span>
@@ -267,10 +275,10 @@
         </div>
       </div>
 
-      <!-- Voltajes Individuales de Celda -->
+      <!-- Voltajes Individuales de Celda (ID: celdas) -->
       <div class="celdas-section">
         <h3>Voltajes Individuales de Celda (Pack Li-Ion)</h3>
-        <div class="celdas-grid" id="celdasContainer">
+        <div class="celdas-grid" id="celdas">
           <!-- Se llenan celdas C1 a C10 dinámicamente -->
         </div>
       </div>
@@ -287,7 +295,7 @@
       </div>
 
       <div class="fuerzas-content">
-        <!-- Diagrama 2D del Robot Cuadrúpedo -->
+        <!-- Diagrama 2D del Robot Cuadrúpedo (IDs: pataFL, pataFR, pataRL, pataRR) -->
         <div class="robot-chassis" id="robotChassis">
           <div class="chassis-front">▲ DELANTERA</div>
           
@@ -305,7 +313,7 @@
           </div>
 
           <div class="chassis-body">
-            <span>CHASIS</span>
+            <span>CHASIS UNITREE</span>
           </div>
 
           <div class="legs-row">

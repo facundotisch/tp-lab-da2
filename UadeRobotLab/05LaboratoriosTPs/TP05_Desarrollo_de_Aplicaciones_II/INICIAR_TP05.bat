@@ -6,7 +6,7 @@ REM ============================================================
 cd /d "%~dp0"
 
 echo ============================================================
-echo    Desarrollo de Aplicaciones II
+echo    Desarrollo de Aplicaciones II - Telemetria UADE
 echo ============================================================
 echo.
 echo    Que robot queres usar?
@@ -29,7 +29,15 @@ if not defined PYTHON where py >nul 2>&1 && set PYTHON=py -3
 if not defined PYTHON where python >nul 2>&1 && set PYTHON=python
 if not defined PYTHON (
   echo    ERROR: no encuentro Python. Instalalo desde https://python.org
-  pause ^& exit /b 1
+  pause & exit /b 1
+)
+
+REM Liberar puerto 8001 si estaba tomado por una ejecucion previa
+powershell -NoProfile -Command "Get-NetTCPConnection -LocalPort 8001 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }" >nul 2>&1
+
+REM Abrir el dashboard en el navegador
+if exist "%~dp0mi_dashboard\dashboard.html" (
+  start "" "%~dp0mi_dashboard\dashboard.html"
 )
 
 if "%ROBOT%"=="demo" (
@@ -37,9 +45,9 @@ if "%ROBOT%"=="demo" (
   %PYTHON% entorno\arrancar_api.py --robot go2 --demo
 ) else (
   echo    Abriendo el simulador 3D...
-  start "Simulador" cmd /c "cd entorno ^&^& %PYTHON% -m sim --robot %ROBOT% --materia tp05"
-  echo    Esperando 5 segundos a que inicie el simulador...
-  timeout /t 5 >nul
+  start "Simulador" cmd /c "cd entorno && %PYTHON% -m sim --robot %ROBOT% --materia tp05"
+  echo    Esperando 6 segundos a que inicie el simulador...
+  timeout /t 6 >nul
   %PYTHON% entorno\arrancar_api.py --robot %ROBOT%
 )
 echo.
